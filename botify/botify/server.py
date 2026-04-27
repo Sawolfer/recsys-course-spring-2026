@@ -16,6 +16,7 @@ from botify.recommenders.i2i import I2IRecommender
 from botify.recommenders.random import Random
 from botify.recommenders.indexed import Indexed
 from botify.recommenders.sticky_artist import StickyArtist
+from botify.recommenders.ml_reranker import MLReranker
 from botify.track import Catalog
 
 root = logging.getLogger()
@@ -74,6 +75,15 @@ sasrec_i2i_recommender = I2IRecommender(
     random_recommender,
 )
 
+ml_reranker_recommender = MLReranker(
+    model_path=app.config.get("ML_MODEL_PATH", "./data/ml_model.joblib"),
+    track_features_path=app.config.get("ML_TRACK_FEATURES_PATH", "./data/track_features.pkl"),
+    listen_history_redis=listen_history_redis.connection,
+    sasrec_i2i_redis=recommendations_contextual_redis.connection,
+    lightfm_i2i_redis=recommendations_lfm_redis.connection,
+    fallback_recommender=random_recommender,
+)
+
 parser = reqparse.RequestParser()
 parser.add_argument("track", type=int, location="json", required=True)
 parser.add_argument("time", type=float, location="json", required=True)
@@ -112,12 +122,12 @@ class NextTrack(Resource):
         args = parser.parse_args()
         persist_user_listen_history(user, args.track, args.time)
 
-        treatment = Experiments.HSTU.assign(user)
+        treatment = Experiments.ML_RERANKER.assign(user)
 
         if treatment == Treatment.C:
             recommender = sasrec_i2i_recommender
         elif treatment == Treatment.T1:
-            recommender = Indexed(recommendations_hstu_redis.connection, catalog, random_recommender)
+            recommender = ml_reranker_recommender
         else:
             recommender = random_recommender
 
