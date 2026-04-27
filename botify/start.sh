@@ -11,4 +11,4 @@ for i in $(seq 1 30); do
     sleep 2
 done
 
-exec gunicorn -k gevent -w 2 -b 0.0.0.0:5001 botify.server:app
+exec gunicorn -k gevent -w 2 -b 0.0.0.0:5001 --timeout 180 botify.server:app
